@@ -1,0 +1,22 @@
+{
+  "name": "image-pdf",
+  "version": "1.0.0",
+  "description": "Convert PDF to image-based PDF entirely in the browser",
+  "scripts": {
+    "serve": "node tools/serve.mjs 8080 .",
+    "test": "node tmp/test/e2e.mjs",
+    "vendor": "node tools/vendor.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438"
+  },
+  "private": true,
+  "devDependencies": {
+    "puppeteer": "^25.16.0"
+  }
+}

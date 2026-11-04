@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF 转图片 PDF · 高分辨率本地转换</title>
+<meta name="description" content="在浏览器本地把 PDF 每页渲染成 600dpi 以上的高清图片，再重新组装成 PDF。文件不会上传到任何服务器。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M9 8h9l5 5v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z' fill='%23fff'/%3E%3Ccircle cx='13' cy='18' r='2.5' fill='%232563eb'/%3E%3Cpath d='M9.5 24l4.5-5 3 3.2 2.2-2.4 3.3 4.2z' fill='%232563eb'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div id="dropOverlay" class="drop-overlay" aria-hidden="true">
+    <div class="drop-overlay-inner">
+      <strong>松手即可载入 PDF</strong>
+      <span>文件不会离开你的浏览器</span>
+    </div>
+  </div>
+
+  <header class="hero">
+    <h1>PDF 转为图片 PDF</h1>
+    <p class="tagline">
+      把每一页按 <strong>600 dpi</strong>（或更高）渲染成高清图片再组装成新的 PDF，相当于「逐页导出高清图后重新合成」。
+    </p>
+    <p class="privacy">
+      <span class="dot" aria-hidden="true"></span>
+      完全在本地运行：文件只在你自己的浏览器里处理，不上传、不联网、不经过任何服务器。
+    </p>
+  </header>
+
+  <p id="errorBox" class="error" role="alert" hidden></p>
+
+  <div id="browserWarn" class="card warn-card" role="alert" hidden>
+    <h2>当前浏览器无法运行这个工具</h2>
+    <p>转换需要较新的浏览器特性，检测到当前环境缺少：</p>
+    <ul id="browserWarnList"></ul>
+    <p class="warn-foot">
+      请改用 <strong>Chrome / Edge 114+</strong> 或同代的 <strong>Safari / Firefox</strong>
+      （手机上的新版 Chrome / Safari 也可以）。
+      转换全程在本机完成，换浏览器后文件依然不会上传。
+    </p>
+  </div>
+
+  <section class="card" id="pickCard">
+    <h2>1. 选择文件</h2>
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或拖放 PDF 文件">
+      <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <p class="dz-main">点击选择 PDF，或把文件拖到这里</p>
+      <p class="dz-sub">也可以直接 Ctrl/⌘ + V 粘贴文件</p>
+    </div>
+    <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden>
+
+    <div id="fileBox" class="filebox" hidden>
+      <div class="filebox-info">
+        <p class="filebox-name" id="fileName"></p>
+        <p class="filebox-meta" id="fileMeta"></p>
+      </div>
+      <button type="button" class="btn ghost" id="clearFileBtn">移除</button>
+    </div>
+  </section>
+
+  <section class="card" id="optionsCard" hidden>
+    <h2>2. 转换设置</h2>
+    <div class="grid">
+      <label class="field">
+        <span class="label">输出分辨率</span>
+        <select id="dpi">
+          <option value="150">150 dpi</option>
+          <option value="300">300 dpi</option>
+          <option value="600" selected>600 dpi（推荐）</option>
+          <option value="900">900 dpi</option>
+          <option value="1200">1200 dpi</option>
+          <option value="custom">自定义…</option>
+        </select>
+        <small class="help" id="dpiHelp">页面尺寸不变，只决定图片像素密度。</small>
+      </label>
+
+      <label class="field" id="customDpiField" hidden>
+        <span class="label">自定义 DPI</span>
+        <input id="customDpi" type="number" min="50" max="2400" step="1" value="600">
+        <small class="help">建议 300 – 1200，越高越慢、文件越大。</small>
+      </label>
+
+      <label class="field">
+        <span class="label">图片格式</span>
+        <select id="format">
+          <option value="jpeg" selected>JPEG（体积小，推荐）</option>
+          <option value="png">PNG（无损，体积大很多）</option>
+        </select>
+        <small class="help" id="formatHelp">JPEG 是有损压缩，扫描件/文字推荐质量 92% 以上。</small>
+      </label>
+
+      <label class="field" id="qualityField">
+        <span class="label">JPEG 质量 <output id="qualityOut">92%</output></span>
+        <input id="quality" type="range" min="0.5" max="1" step="0.01" value="0.92">
+        <small class="help">质量越高越清晰，体积也越大。</small>
+      </label>
+
+      <label class="field">
+        <span class="label">页面范围</span>
+        <input id="pageRange" type="text" placeholder="留空 = 全部，例如 1-3,5,8-" autocomplete="off">
+        <small class="help" id="rangeHelp">支持 1-3,5,8- 这样的写法。</small>
+      </label>
+
+      <label class="field">
+        <span class="label">输出文件名</span>
+        <input id="outName" type="text" placeholder="自动：原名 + -image.pdf" autocomplete="off">
+        <small class="help">留空则自动命名。</small>
+      </label>
+    </div>
+
+    <p class="engine" id="engineNote">渲染线程：检测中…</p>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="startBtn">开始转换</button>
+      <button type="button" class="btn" id="cancelBtn" hidden>取消</button>
+    </div>
+  </section>
+
+  <section class="card" id="progressCard" hidden>
+    <h2>3. 处理进度</h2>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+      <div class="bar-fill" id="barFill"></div>
+    </div>
+    <div class="bar-meta">
+      <span id="progressPct">0%</span>
+      <span id="progressStage">等待开始</span>
+    </div>
+
+    <dl class="stats">
+      <div><dt>页面</dt><dd id="statPages">—</dd></div>
+      <div><dt>当前 DPI</dt><dd id="statDpi">—</dd></div>
+      <div><dt>已用时间</dt><dd id="statElapsed">—</dd></div>
+      <div><dt>预计剩余</dt><dd id="statEta">—</dd></div>
+    </dl>
+
+    <div class="live">
+      <figure class="preview">
+        <canvas id="preview" width="1" height="1"></canvas>
+        <figcaption id="previewCaption">页面预览</figcaption>
+      </figure>
+      <div class="logbox">
+        <h3>日志</h3>
+        <ol id="log" class="log"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="resultCard" hidden>
+    <h2>4. 下载结果</h2>
+    <p id="resultSummary" class="result-summary"></p>
+    <div class="actions">
+      <a id="downloadLink" class="btn primary" download>下载图片 PDF</a>
+      <button type="button" class="btn" id="againBtn">再转一个文件</button>
+    </div>
+  </section>
+
+  <section class="card notes">
+    <h2>说明</h2>
+    <ul>
+      <li><strong>页面尺寸不变。</strong>输出 PDF 的每页尺寸与原 PDF 的页面尺寸（点）一致，改变的是页面内图片的像素密度。</li>
+      <li><strong>处理链路。</strong>pdf.js 逐页渲染到画布 → 编码成 JPEG/PNG → pdf-lib 把图片原样嵌入新 PDF（JPEG 直接嵌入，不二次压缩）。</li>
+      <li><strong>浏览器上限。</strong>单个画布有尺寸上限（各浏览器不同，通常单边 ≤ 16384 px）。超限时会自动降级到该页可用的最高 DPI，并在日志里提示。</li>
+      <li><strong>内存占用。</strong>转换是逐页进行的，一页处理完就释放画布；页数很多时依然建议用桌面浏览器。</li>
+      <li><strong>隐私。</strong>页面只加载同源的 pdf.js / pdf-lib 脚本，没有任何网络请求上传你的文件。</li>
+    </ul>
+  </section>
+
+  <footer class="foot">
+    <p>纯静态页面，可直接部署在 GitHub Pages / 任意静态托管上。</p>
+  </footer>
+</div>
+
+<script>
+/* 能力检测刻意用最普通的脚本写：浏览器太旧、模块脚本跑不起来时，页面也得能给出提示。 */
+(function () {
+  var missing = [];
+  function need(label, ok) { if (!ok) missing.push(label); }
+
+  // pdf.js 6 用到 Promise.try（Chrome 128+ 才有）和 Promise.withResolvers（Chrome 119+），
+  // 补上这两个方法只要几行，能让更多浏览器直接用，而不是被版本门槛挡在外面。
+  // 其余更新的 ES 方法（Uint8Array 的 hex / base64、Map#getOrInsertComputed、Math.sumPrecise…）
+  // 统一放在 assets/compat.js 里补——那是模块，只有在页面脚本能跑起来的环境里才加载得动，
+  // 这一段则必须是最普通的脚本，浏览器太旧时也得能显示提示。
+  if (typeof Promise.try !== 'function') {
+    Promise.try = function (fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function (resolve) { resolve(fn.apply(undefined, args)); });
+    };
+  }
+  if (typeof Promise.withResolvers !== 'function') {
+    Promise.withResolvers = function () {
+      var resolve, reject;
+      var promise = new Promise(function (res, rej) { resolve = res; reject = rej; });
+      return { promise: promise, resolve: resolve, reject: reject };
+    };
+  }
+
+  need('structuredClone', typeof structuredClone === 'function');
+  need('URL.createObjectURL', typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function');
+  need('Blob / File', typeof Blob === 'function' && typeof File === 'function');
+  need('FileReader', typeof FileReader === 'function');
+  need('Canvas 2D 与 canvas.toBlob', typeof HTMLCanvasElement !== 'undefined'
+    && typeof HTMLCanvasElement.prototype.getContext === 'function'
+    && typeof HTMLCanvasElement.prototype.toBlob === 'function');
+
+  function show(list) {
+    var box = document.getElementById('browserWarn');
+    var ul = document.getElementById('browserWarnList');
+    if (!box || !ul) return;
+    for (var i = 0; i < list.length; i++) {
+      var li = document.createElement('li');
+      li.textContent = list[i];
+      ul.appendChild(li);
+    }
+    box.hidden = false;
+    document.documentElement.className += ' unsupported';
+  }
+
+  if (missing.length) show(missing);
+
+  // 能力都够但页面脚本没跑起来（例如浏览器不支持 ES 模块、或脚本加载失败）时也提示。
+  window.addEventListener('load', function () {
+    if (window.__appReady) return;
+    show(['页面脚本没能启动（需要支持 ES 模块的浏览器，或检查脚本是否加载失败）']);
+  });
+})();
+</script>
+<script type="module" src="./assets/app.js"></script>
+</body>
+</html>
